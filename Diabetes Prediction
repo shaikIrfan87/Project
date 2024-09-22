@@ -1,0 +1,116 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+
+# Load dataset
+df = pd.read_csv('diabetic.csv')
+
+# Check for missing values
+print("Missing values:\n", df.isnull().sum())
+
+def calculate_risk_score(Gender,Age,BMI,Glucose,WaistCircumference,SkinThickness,DiabetesPedigreeFunction,CarbohydratePercentage):
+    risk_score = 0
+    
+    # Assign weights based on feature importance
+    Gender_weight = 0.1
+    Age_weight = 0.1
+    BMI_weight = 0.3
+    Glucose_weight = 0.4
+    WaistCircumference_weight = 0.3
+    skin_thickness_weight = 0.3
+    diabetes_pedigree_function_weight = 0.5
+    CarbohydratePercentage_weight = 0.4
+
+    
+    # Calculate the risk score
+    risk_score +=Gender * Gender_weight
+    risk_score +=Age * Age_weight
+    risk_score += BMI * BMI_weight
+    risk_score += Glucose * Glucose_weight
+    risk_score += WaistCircumference * WaistCircumference_weight
+    risk_score += SkinThickness * skin_thickness_weight
+    risk_score += DiabetesPedigreeFunction * diabetes_pedigree_function_weight
+    risk_score +=CarbohydratePercentage * CarbohydratePercentage_weight
+    
+    
+    # Normalize the risk score to a range (e.g., 0 to 1)
+    risk_score = risk_score / (Gender_weight + Age_weight + BMI_weight + Glucose_weight + WaistCircumference_weight + skin_thickness_weight + diabetes_pedigree_function_weight + CarbohydratePercentage_weight)
+    
+    return risk_score
+# Separate features and target
+X = df.drop('Outcome', axis=1)  # Features
+y = df['Outcome']  # Target
+
+# Split into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Standardize the data
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Build the Random Forest model
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model.fit(X_train, y_train)
+
+# Predict on test data
+y_pred = rf_model.predict(X_test)
+
+# Evaluate the model
+accuracy = accuracy_score(y_test, y_pred)
+print(f'Accuracy: {accuracy * 100:.2f}%')
+
+# Confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+sns.heatmap(cm, annot=True, fmt="d", cmap='Blues')
+plt.title('Confusion Matrix')
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.show()
+
+# Classification report
+print("Classification Report:\n", classification_report(y_test, y_pred))
+
+# Function to get user input for patient features
+def get_patient_input():
+    print("Please enter the following details for the patient:")
+    Gender = float(input("Gender (0 for fmale, 1 for male): "))
+    Age = float(input("Age (years): "))
+    BMI = float(input("Body Mass Index (BMI): "))
+    Glucose = float(input("Plasma glucose concentration (mg/dl): "))
+    WaistCircumference = float(input("Waist Circumference (cm): "))
+    SkinThickness = float(input("Triceps Skin Fold Thickness (mm): "))
+    DiabetesPedigreeFunction = float(input("Diabetes Pedigree Function: "))
+    CarbohydratePercentage = float(input("Percentage of carbohydrates in diet: "))
+    
+    # Create an array for the new patient data (8 features)
+    new_patient = np.array([[Gender, Age, BMI, Glucose, WaistCircumference,
+                              SkinThickness, DiabetesPedigreeFunction, CarbohydratePercentage]])
+    
+    return new_patient
+
+# Get user input and make a prediction
+new_patient = get_patient_input()
+
+# Ensure the new patient's data is transformed using the same scaler
+new_patient_scaled = scaler.transform(new_patient)
+
+# Predict if the new patient is diabetic
+prediction = rf_model.predict(new_patient_scaled)
+print("Prediction for the new patient (1 = Diabetic, 0 = Not Diabetic):", prediction[0])
+
+# Predict the probability of the new patient being diabetic
+risk_score = rf_model.predict_proba(new_patient_scaled)[:, 1]  # Probability of being diabetic
+
+# Provide a more interpretable risk score
+if risk_score[0] >= 0.5:
+    risk_category = "High Risk"
+else:
+    risk_category = "Low Risk"
+
+print(f"Risk Score for the new patient (probability of being diabetic): {risk_score[0] * 100:.2f}% - Category: {risk_category}")
